@@ -11,8 +11,8 @@ import type {
 
 const DEFAULT_MODEL_MAP: Record<ModelTier, string> = {
   ROUTER: 'claude-haiku-4-5-20251001',
-  AGENT: 'claude-sonnet-4-6-20250116',
-  WORK: 'claude-sonnet-4-6-20250116',
+  AGENT: 'claude-sonnet-4-6',
+  WORK: 'claude-sonnet-4-6',
   EMBEDDING: '', // Anthropic has no embedding API
 };
 
