@@ -659,6 +659,9 @@ async function rejectProposal(id, btn) {
 }
 
 // Update pending count badge
+const pendingBanner = document.getElementById('pending-banner');
+const pendingBannerText = document.getElementById('pending-banner-text');
+
 async function updateProposalsCount() {
   try {
     const resp = await apiFetch('/api/proposals?status=pending');
@@ -667,6 +670,10 @@ async function updateProposalsCount() {
     if (proposalsCountEl) {
       proposalsCountEl.textContent = count;
       proposalsCountEl.classList.toggle('hidden', count === 0);
+    }
+    if (pendingBanner) {
+      pendingBanner.classList.toggle('hidden', count === 0);
+      if (pendingBannerText) pendingBannerText.textContent = `${count} proposal${count !== 1 ? 's' : ''} awaiting review`;
     }
   } catch { /* not critical */ }
 }

@@ -220,6 +220,10 @@
         <button id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark theme">Light</button>
         <button id="clear-chat" aria-label="Clear chat history" title="Clear chat">Clear</button>
       </div>
+      <div id="pending-banner" class="pending-banner hidden" onclick="document.getElementById('proposals-btn')?.click()">
+        <span id="pending-banner-text">0 proposals awaiting review</span>
+        <span class="pending-banner-action">View</span>
+      </div>
       <div id="mission-checklist" class="mission-checklist hidden"></div>
       <div id="messages" role="log" aria-live="polite">
         <div id="empty-state" class="empty-state">

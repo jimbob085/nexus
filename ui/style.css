@@ -524,6 +524,31 @@ body::before {
 .config-hint a { color: var(--accent); text-decoration: none; }
 .config-hint a:hover { text-decoration: underline; }
 
+/* Pending proposals banner */
+.pending-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background: rgba(255, 193, 7, 0.1);
+  border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+  font-size: 12px;
+  font-family: var(--mono);
+  color: #ffc107;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.pending-banner:hover { background: rgba(255, 193, 7, 0.15); }
+.pending-banner.hidden { display: none; }
+
+.pending-banner-action {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* Proposals panel */
 .proposals-filters {
   display: flex;
