@@ -11,7 +11,7 @@ export class ClaudeCodeBackend implements ExecutionBackend {
     const prompt = buildPrompt(ticket);
     return spawnCli({
       command: 'claude',
-      args: ['-p', prompt, '--output-format', 'text'],
+      args: ['-p', prompt, '--output-format', 'text', '--dangerously-skip-permissions'],
       cwd: ticket.repoPath,
       timeoutMs: this.timeoutMs,
       backendName: this.name,
