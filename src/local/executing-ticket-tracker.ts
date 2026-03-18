@@ -262,6 +262,35 @@ Keep your review concise and actionable.`;
 
         // Post the review to the UI
         await sendAgentMessage(LOCAL_CHANNEL_ID, 'Code Review', review, input.orgId);
+
+        // Act on the review outcome
+        const reviewUpper = review.toUpperCase();
+        if (reviewUpper.includes('REJECT') || reviewUpper.includes('NEEDS_CHANGES')) {
+          // Mark ticket as needing rework
+          await db.update(tickets).set({ executionStatus: 'review_failed' }).where(eq(tickets.id, ticketId));
+
+          // Notify with retry option
+          localBus.emit('message', {
+            id: `review-action-${ticketId}`,
+            content: `**[System]** Code review outcome: **${reviewUpper.includes('REJECT') ? 'REJECTED' : 'NEEDS CHANGES'}**. The execution did not meet acceptance criteria for "${input.title}".`,
+            retry_ticket_id: ticketId,
+            channel_id: LOCAL_CHANNEL_ID,
+            timestamp: new Date().toISOString(),
+          });
+
+          logger.info({ ticketId, outcome: reviewUpper.includes('REJECT') ? 'rejected' : 'needs_changes' }, 'Execution review: rework needed');
+        } else if (reviewUpper.includes('APPROVE')) {
+          await db.update(tickets).set({ executionStatus: 'review_approved' }).where(eq(tickets.id, ticketId));
+
+          localBus.emit('message', {
+            id: `review-approved-${ticketId}`,
+            content: `**[System]** Code review **APPROVED** for "${input.title}". Changes are ready on the local branch.`,
+            channel_id: LOCAL_CHANNEL_ID,
+            timestamp: new Date().toISOString(),
+          });
+
+          logger.info({ ticketId }, 'Execution review: approved');
+        }
       }
     } catch (err) {
       logger.warn({ err, ticketId }, 'Failed to trigger execution review');
