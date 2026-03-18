@@ -48,19 +48,8 @@ export async function resetBackoffStep(orgId: string): Promise<void> {
   }
 }
 
-/** Get the effective daily idle cap for an org (plan-aware, with admin override support). */
-export async function getMaxIdlePer24h(orgId: string): Promise<number> {
-  try {
-    // Attempt to load the adapter-specific fetchAgentLimits function dynamically.
-    // Falls back to the default limit if the module is not available (e.g. OSS / non-PermaShip deploys).
-    const { fetchAgentLimits } = await import('../permaship/client.js');
-    if (typeof fetchAgentLimits === 'function') {
-      const limits = await fetchAgentLimits(orgId);
-      if (limits) return limits.maxIdlePromptsPerDay;
-    }
-  } catch (err) {
-    logger.warn({ err, orgId }, 'fetchAgentLimits not available, using default idle limit');
-  }
+/** Get the effective daily idle cap for an org. */
+export async function getMaxIdlePer24h(_orgId: string): Promise<number> {
   return MAX_IDLE_PER_24H;
 }
 

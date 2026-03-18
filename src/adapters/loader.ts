@@ -25,26 +25,19 @@ export async function loadAdapters(): Promise<void> {
 }
 
 async function loadPermashipAdapters(): Promise<AdapterSet> {
-  // Dynamic imports to avoid loading PermaShip deps when using default profile
-  const { PermashipUsageSink } = await import('./permaship/usage-sink.js');
-  const { PermashipCommitProvider } = await import('./permaship/commit-provider.js');
-  const { PermashipKnowledgeSource } = await import('./permaship/knowledge-source.js');
-  const { PermashipCommunicationAdapter } = await import('./permaship/communication-adapter.js');
-  const { PermashipProjectRegistry } = await import('./permaship/project-registry.js');
-  const { PermashipTicketTracker } = await import('./permaship/ticket-tracker.js');
-  const { PermashipTenantResolver } = await import('./permaship/tenant-resolver.js');
-  const { GeminiLLMProvider } = await import('./permaship/llm-provider.js');
-
-  return {
-    usageSink: new PermashipUsageSink(),
-    commitProvider: new PermashipCommitProvider(),
-    knowledgeSource: new PermashipKnowledgeSource(),
-    communicationAdapter: new PermashipCommunicationAdapter(),
-    projectRegistry: new PermashipProjectRegistry(),
-    ticketTracker: new PermashipTicketTracker(),
-    tenantResolver: new PermashipTenantResolver(),
-    llmProvider: new GeminiLLMProvider(),
-  };
+  // PermaShip adapters live in the external @permaship/agents-adapters package.
+  // Dynamic import keeps the OSS core free of PermaShip dependencies.
+  try {
+    const pkgName = '@permaship/agents-adapters';
+    const mod = await import(/* webpackIgnore: true */ pkgName) as { loadPermashipAdapters: () => AdapterSet };
+    return mod.loadPermashipAdapters();
+  } catch (err) {
+    logger.error({ err }, 'Failed to load @permaship/agents-adapters — is it installed?');
+    throw new Error(
+      'ADAPTER_PROFILE=permaship requires @permaship/agents-adapters to be installed. ' +
+      'Run: npm install @permaship/agents-adapters',
+    );
+  }
 }
 
 async function loadDefaultAdapters(): Promise<AdapterSet> {

@@ -10,7 +10,76 @@
   "bin": {
     "nexus-command": "./bin/cli.ts"
   },
-
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./db": {
+      "types": "./dist/src/db/index.d.ts",
+      "import": "./dist/src/db/index.js"
+    },
+    "./db/schema": {
+      "types": "./dist/src/db/schema.d.ts",
+      "import": "./dist/src/db/schema.js"
+    },
+    "./logger": {
+      "types": "./dist/src/logger.d.ts",
+      "import": "./dist/src/logger.js"
+    },
+    "./config": {
+      "types": "./dist/src/config.d.ts",
+      "import": "./dist/src/config.js"
+    },
+    "./settings/service": {
+      "types": "./dist/src/settings/service.d.ts",
+      "import": "./dist/src/settings/service.js"
+    },
+    "./telemetry/usage-reporter": {
+      "types": "./dist/src/telemetry/usage-reporter.d.ts",
+      "import": "./dist/src/telemetry/usage-reporter.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/adapters/index.d.ts",
+      "import": "./dist/src/adapters/index.js"
+    },
+    "./adapters/interfaces/commit-provider": {
+      "types": "./dist/src/adapters/interfaces/commit-provider.d.ts",
+      "import": "./dist/src/adapters/interfaces/commit-provider.js"
+    },
+    "./adapters/interfaces/communication-adapter": {
+      "types": "./dist/src/adapters/interfaces/communication-adapter.d.ts",
+      "import": "./dist/src/adapters/interfaces/communication-adapter.js"
+    },
+    "./adapters/interfaces/knowledge-source": {
+      "types": "./dist/src/adapters/interfaces/knowledge-source.d.ts",
+      "import": "./dist/src/adapters/interfaces/knowledge-source.js"
+    },
+    "./adapters/interfaces/llm-provider": {
+      "types": "./dist/src/adapters/interfaces/llm-provider.d.ts",
+      "import": "./dist/src/adapters/interfaces/llm-provider.js"
+    },
+    "./adapters/interfaces/project-registry": {
+      "types": "./dist/src/adapters/interfaces/project-registry.d.ts",
+      "import": "./dist/src/adapters/interfaces/project-registry.js"
+    },
+    "./adapters/interfaces/tenant-resolver": {
+      "types": "./dist/src/adapters/interfaces/tenant-resolver.d.ts",
+      "import": "./dist/src/adapters/interfaces/tenant-resolver.js"
+    },
+    "./adapters/interfaces/ticket-tracker": {
+      "types": "./dist/src/adapters/interfaces/ticket-tracker.d.ts",
+      "import": "./dist/src/adapters/interfaces/ticket-tracker.js"
+    },
+    "./adapters/interfaces/usage-sink": {
+      "types": "./dist/src/adapters/interfaces/usage-sink.d.ts",
+      "import": "./dist/src/adapters/interfaces/usage-sink.js"
+    },
+    "./adapters/registry": {
+      "types": "./dist/src/adapters/registry.d.ts",
+      "import": "./dist/src/adapters/registry.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx bin/cli.ts",
@@ -35,6 +104,7 @@
     "@fastify/helmet": "^13.0.2",
     "@fastify/static": "^9.0.0",
     "@fastify/websocket": "^11.2.0",
+    "@google/genai": "^1.45.0",
     "@google/generative-ai": "^0.24.1",
     "discord.js": "^14.16.0",
     "dotenv": "^16.4.7",

@@ -1,6 +1,6 @@
 import { config } from '../../config.js';
 import type { LLMProvider, ModelTier } from '../interfaces/llm-provider.js';
-import { GeminiLLMProvider } from '../permaship/llm-provider.js';
+import { DefaultLLMProvider } from '../default/llm-provider.js';
 import { AnthropicProvider } from './anthropic.js';
 import { OpenAIProvider } from './openai.js';
 import { OllamaProvider } from './ollama.js';
@@ -9,7 +9,7 @@ import { MultiProvider } from './multi.js';
 function buildSingleProvider(name: string, apiKey: string): LLMProvider {
   switch (name) {
     case 'gemini':
-      return new GeminiLLMProvider();
+      return new DefaultLLMProvider(apiKey || config.GEMINI_API_KEY || '');
     case 'anthropic':
       if (!apiKey) throw new Error('LLM_API_KEY is required for Anthropic provider');
       return new AnthropicProvider(apiKey);

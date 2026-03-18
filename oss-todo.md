@@ -1,24 +1,26 @@
 # OSS Extraction Checklist
 
-Phase 1 (adapter interfaces) is complete. Phase 2 (OSS extraction) is largely complete.
-This tracks the remaining work and what has been done.
+Phase 1 (adapter interfaces) is complete. Phase 2 (OSS extraction) is complete.
+Phase 3 (adapter package extraction) is complete.
 
 ---
 
-## 1. Move to private `@permaship/agents-adapters` package
+## 1. Move to private `@permaship/agents-adapters` package — DONE
 
-PermaShip adapter code remains in the repo for now (it must continue working), but is isolated
-behind the adapter loader (`src/adapters/loader.ts`). These files should eventually be extracted
-to a separate `@permaship/agents-adapters` package:
+All PermaShip adapter code has been extracted to a separate `@permaship/agents-adapters` package
+at `../agents-adapters/`. The core's loader.ts dynamically imports from the external package
+when `ADAPTER_PROFILE=permaship`.
 
-- [ ] `src/adapters/permaship/` (all 8 implementation files + config.ts)
-- [ ] `src/permaship/client.ts` (raw PermaShip API client)
-- [ ] `src/services/communication/gateway.ts` (PermaShip Comms gateway)
-- [ ] `src/services/tenant.ts` (workspace/org linking + `verifyActivationToken`)
-- [ ] `src/gemini/client.ts` + `src/gemini/models.ts` (Gemini-specific LLM client)
-- [ ] `src/idle/backoff.ts` (dynamic import of permaship client — make fully adapter-based)
-
-The following have been completed:
+- [x] `src/adapters/permaship/` (all 8 implementation files + config.ts)
+- [x] `src/permaship/client.ts` (raw PermaShip API client)
+- [x] `src/services/communication/gateway.ts` (PermaShip Comms gateway)
+- [x] `src/services/tenant.ts` (workspace/org linking + `verifyActivationToken`)
+- [x] `src/gemini/client.ts` + `src/gemini/models.ts` (Gemini-specific LLM client)
+- [x] `src/idle/backoff.ts` — removed dynamic import of permaship client, uses constant
+- [x] `src/intent/classifier.ts` — switched from direct Gemini import to LLM adapter
+- [x] `src/adapters/providers/factory.ts` — switched from PermaShip GeminiLLMProvider to DefaultLLMProvider
+- [x] `deploy/permaship/` — moved to adapter package
+- [x] Core `package.json` exports added for adapter package to import db, logger, config, etc.
 - [x] `initAdapters()` wiring — replaced with `loadAdapters()` in both `src/index.ts` and `src/tools/cli.ts`
 - [x] `src/seed-knowledge.ts` — moved to `deploy/permaship/`
 - [x] PermaShip service files now import from `src/adapters/permaship/config.ts` instead of core config

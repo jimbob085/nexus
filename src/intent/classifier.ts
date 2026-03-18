@@ -1,6 +1,6 @@
-import { ClassifiedIntent, ClassifiedIntentSchema, geminiResponseSchema } from '../../agents/schemas/intent.js';
+import { ClassifiedIntent, ClassifiedIntentSchema } from '../../agents/schemas/intent.js';
 import { getMockIntent } from './mock_intents.js';
-import { callGemini } from '../gemini/client.js';
+import { getLLMProvider } from '../adapters/registry.js';
 import featureFlags from '../../config/feature_flags.json' with { type: 'json' };
 
 const CLASSIFICATION_TIMEOUT_MS = 8000;
@@ -34,12 +34,10 @@ export async function classifyIntent(message: string): Promise<ClassifiedIntent>
   }
 
   const classifyWithTimeout = async (): Promise<ClassifiedIntent> => {
-    const text = await callGemini({
+    const text = await getLLMProvider().generateText({
       model: 'ROUTER',
       systemInstruction: SYSTEM_PROMPT,
       contents: [{ role: 'user', parts: [{ text: message }] }],
-      responseMimeType: 'application/json',
-      responseSchema: geminiResponseSchema as Record<string, unknown>,
     });
 
     const parsed = JSON.parse(text);
