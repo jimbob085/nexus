@@ -463,12 +463,14 @@ export async function startLocalServer(port = 3000): Promise<void> {
   /** Get system configuration (read-only) */
   server.get('/api/config', async () => {
     const autonomous = await isAutonomousMode(LOCAL_ORG_ID);
+    const useWorktrees = await getSetting('use_worktrees', LOCAL_ORG_ID) === true;
     const projects = await projectRegistry.getAllProjects(LOCAL_ORG_ID);
     const hasKey = config.LLM_PROVIDER === 'ollama' || !!(process.env.LLM_API_KEY || process.env.GEMINI_API_KEY);
     return {
       llmProvider: config.LLM_PROVIDER,
       executionBackend: config.EXECUTION_BACKEND,
       autonomousMode: autonomous,
+      useWorktrees,
       projectCount: projects.length,
       needsSetup: !hasKey,
     };
@@ -639,6 +641,13 @@ export async function startLocalServer(port = 3000): Promise<void> {
     await setSetting('autonomous_mode', enabled, LOCAL_ORG_ID, 'local-ui');
     broadcast('settings_changed', { autonomousMode: enabled });
     return { success: true, autonomousMode: enabled };
+  });
+
+  server.post('/api/settings/worktrees', async (request) => {
+    const { enabled } = request.body as { enabled: boolean };
+    await setSetting('use_worktrees', enabled, LOCAL_ORG_ID, 'local-ui');
+    broadcast('settings_changed', { useWorktrees: enabled });
+    return { success: true, useWorktrees: enabled };
   });
 
   // ── REST: agent management ─────────────────────────────────────────────

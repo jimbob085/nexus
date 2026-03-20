@@ -827,6 +827,7 @@ const configLlmEl = document.getElementById('config-llm');
 const executorSelect = document.getElementById('executor-select');
 const permashipHint = document.getElementById('permaship-hint');
 const autonomousToggle = document.getElementById('autonomous-toggle');
+const worktreeToggle = document.getElementById('worktree-toggle');
 
 async function loadConfig() {
   try {
@@ -839,6 +840,7 @@ async function loadConfig() {
     updateSettingsCue();
     permashipHint.classList.toggle('hidden', backend !== 'permaship');
     autonomousToggle.checked = cfg.autonomousMode || false;
+    if (worktreeToggle) worktreeToggle.checked = cfg.useWorktrees || false;
     showSetupIfNeeded(cfg);
     // Test executor on load if one is configured (skip noop)
     if (backend !== 'noop') testExecutor(backend);
@@ -926,6 +928,20 @@ autonomousToggle.addEventListener('change', async () => {
     appendSystemMessage('Failed to update autonomous mode.');
   }
 });
+
+if (worktreeToggle) {
+  worktreeToggle.addEventListener('change', async () => {
+    try {
+      await apiFetch('/api/settings/worktrees', {
+        method: 'POST',
+        body: JSON.stringify({ enabled: worktreeToggle.checked }),
+      });
+    } catch (err) {
+      worktreeToggle.checked = !worktreeToggle.checked;
+      appendSystemMessage('Failed to update worktree setting.');
+    }
+  });
+}
 
 // ── Settings Panel ───────────────────────────────────────────────────────────
 

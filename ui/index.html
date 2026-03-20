@@ -132,6 +132,11 @@
             <label class="toggle"><input type="checkbox" id="autonomous-toggle" aria-label="Autonomous mode"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-desc">When on, agents create tickets without approval buttons.</div>
+          <div class="setting-row">
+            <span class="setting-label">Isolated Worktrees</span>
+            <label class="toggle"><input type="checkbox" id="worktree-toggle" aria-label="Use git worktrees"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="setting-desc">Execute approved tickets in isolated git worktrees instead of the main working directory. Changes land on separate branches for review.</div>
         </div>
         <!-- Agents Tab -->
         <div id="tab-agents" class="tab-content">

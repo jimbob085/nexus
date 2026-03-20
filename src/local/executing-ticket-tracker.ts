@@ -13,6 +13,7 @@ import { executeAgent } from '../agents/executor.js';
 import { sendAgentMessage } from '../bot/formatter.js';
 import { LOCAL_ORG_ID, LOCAL_CHANNEL_ID } from './tenant-resolver.js';
 import { getProjectRegistry } from '../adapters/registry.js';
+import { getSetting } from '../settings/service.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -110,9 +111,32 @@ export class LocalExecutingTicketTracker extends LocalTicketTracker {
     return { success: true };
   }
 
+  /** Create a git worktree for isolated execution */
+  private async createWorktree(repoPath: string, branchName: string): Promise<{ worktreePath: string; cleanup: () => Promise<void> }> {
+    const worktreeDir = join(repoPath, '.nexus-worktrees');
+    const worktreePath = join(worktreeDir, branchName);
+
+    await execFileAsync('mkdir', ['-p', worktreeDir]);
+    // Create an orphan-style worktree on a new branch
+    await execFileAsync('git', ['worktree', 'add', '-b', branchName, worktreePath], { cwd: repoPath, timeout: 15_000 });
+
+    logger.info({ repoPath, worktreePath, branchName }, 'Created git worktree for execution');
+
+    const cleanup = async () => {
+      try {
+        await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], { cwd: repoPath, timeout: 15_000 });
+        // Don't delete the branch — keep it for review
+        logger.info({ worktreePath, branchName }, 'Cleaned up git worktree (branch preserved)');
+      } catch (err) {
+        logger.warn({ err, worktreePath }, 'Failed to clean up worktree');
+      }
+    };
+
+    return { worktreePath, cleanup };
+  }
+
   private async dispatchExecution(ticketId: string, input: CreateTicketInput): Promise<void> {
-    // Resolve the actual local path from the project registry (handles local projects
-    // that have an absolute path), falling back to join(repoRoot, repoKey) for legacy.
+    // Resolve the actual local path from the project registry
     let repoPath: string;
     const registry = getProjectRegistry();
     if ('getProjectByRepoKey' in registry && typeof (registry as any).getProjectByRepoKey === 'function') {
@@ -122,12 +146,29 @@ export class LocalExecutingTicketTracker extends LocalTicketTracker {
       repoPath = join(this.repoRoot, input.repoKey);
     }
 
-    logger.info({ ticketId, backend: this.backend.name, repoPath, title: input.title },
+    // Check if worktree isolation is enabled
+    const useWorktree = await getSetting('use_worktrees', input.orgId) === true;
+    let execPath = repoPath;
+    let worktreeCleanup: (() => Promise<void>) | null = null;
+    let branchName: string | undefined;
+
+    if (useWorktree) {
+      try {
+        branchName = `nexus/${ticketId.slice(0, 8)}-${input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`;
+        const wt = await this.createWorktree(repoPath, branchName);
+        execPath = wt.worktreePath;
+        worktreeCleanup = wt.cleanup;
+      } catch (err) {
+        logger.warn({ err, repoPath }, 'Failed to create worktree — falling back to direct execution');
+      }
+    }
+
+    logger.info({ ticketId, backend: this.backend.name, repoPath: execPath, useWorktree, title: input.title },
       'Dispatching ticket to execution backend');
 
     localBus.emit('message', {
       id: `exec-start-${ticketId}`,
-      content: `**[System]** Dispatching ticket "${input.title}" to **${this.backend.name}** in \`${repoPath}\`...`,
+      content: `**[System]** Dispatching ticket "${input.title}" to **${this.backend.name}**${useWorktree && branchName ? ` on branch \`${branchName}\`` : ''} in \`${execPath}\`...`,
       channel_id: LOCAL_CHANNEL_ID,
       timestamp: new Date().toISOString(),
     });
@@ -137,12 +178,17 @@ export class LocalExecutingTicketTracker extends LocalTicketTracker {
       kind: input.kind,
       title: input.title,
       description: input.description,
-      repoPath,
+      repoPath: execPath,
       repoKey: input.repoKey,
     });
 
+    if (branchName) execResult.branch = branchName;
+
     // Capture git diff of what changed
-    const diff = await this.captureGitDiff(repoPath);
+    const diff = await this.captureGitDiff(execPath);
+
+    // Clean up worktree (branch is preserved for review)
+    if (worktreeCleanup) await worktreeCleanup();
 
     // Store results in DB
     await db.update(tickets).set({
