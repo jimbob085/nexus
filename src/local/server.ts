@@ -920,6 +920,17 @@ export async function createLocalServer(_port = 3000) {
     return { success: true, mission };
   });
 
+  /** Re-trigger mission planning (generates checklist items) */
+  server.post('/api/missions/:id/plan', async (request) => {
+    const { id } = request.params as { id: string };
+    try {
+      await planMission(id, LOCAL_ORG_ID);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
   /** Get chat history for a mission channel */
   server.get('/api/missions/:id/chat', async (request) => {
     const { id } = request.params as { id: string };

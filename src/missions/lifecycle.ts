@@ -63,12 +63,22 @@ Output ONLY the JSON array, no other text.`;
       // Extract JSON array from response
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const items = JSON.parse(jsonMatch[0]) as Array<{ title: string; description: string }>;
-        if (Array.isArray(items) && items.length > 0) {
-          await addMissionItems(missionId, items);
-          logger.info({ missionId, itemCount: items.length }, 'Mission items created from planning');
+        try {
+          const items = JSON.parse(jsonMatch[0]) as Array<{ title: string; description: string }>;
+          if (Array.isArray(items) && items.length > 0) {
+            await addMissionItems(missionId, items);
+            logger.info({ missionId, itemCount: items.length }, 'Mission items created from planning');
+          } else {
+            logger.warn({ missionId, response: response.slice(0, 300) }, 'Mission planning returned empty items array');
+          }
+        } catch (parseErr) {
+          logger.warn({ missionId, parseErr, jsonSnippet: jsonMatch[0].slice(0, 200) }, 'Failed to parse mission planning JSON');
         }
+      } else {
+        logger.warn({ missionId, response: response.slice(0, 500) }, 'Mission planning response contained no JSON array');
       }
+    } else {
+      logger.warn({ missionId }, 'Mission planning returned null response from LLM');
     }
   } catch (err) {
     logger.error({ err, missionId }, 'Mission planning failed');
