@@ -140,6 +140,29 @@ export async function addMissionItems(
   return db.insert(missionItems).values(values).returning();
 }
 
+/** Remove duplicate mission items (keeps the oldest by createdAt for each title) */
+export async function dedupMissionItems(missionId: string): Promise<number> {
+  const items = await db.select().from(missionItems)
+    .where(eq(missionItems.missionId, missionId))
+    .orderBy(missionItems.createdAt);
+
+  const seen = new Map<string, string>(); // title → id to keep
+  const toDelete: string[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.title)) {
+      toDelete.push(item.id);
+    } else {
+      seen.set(item.title, item.id);
+    }
+  }
+
+  if (toDelete.length > 0) {
+    await db.delete(missionItems).where(inArray(missionItems.id, toDelete));
+  }
+  return toDelete.length;
+}
+
 export async function getMissionItem(itemId: string): Promise<MissionItem | null> {
   const [item] = await db
     .select()

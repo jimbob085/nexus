@@ -6,6 +6,7 @@ import {
   getMissionProjects,
   addMissionItems,
   updateMissionStatus,
+  dedupMissionItems,
 } from './service.js';
 import type { AgentId } from '../agents/types.js';
 
@@ -16,6 +17,10 @@ import type { AgentId } from '../agents/types.js';
 export async function planMission(missionId: string, orgId: string): Promise<void> {
   const mission = await getMission(missionId, orgId);
   if (!mission) throw new Error(`Mission ${missionId} not found`);
+
+  // Clean up any duplicate items from previous planning runs
+  const removed = await dedupMissionItems(missionId);
+  if (removed > 0) logger.info({ missionId, removed }, 'Removed duplicate mission items');
 
   // Transition to planning
   await updateMissionStatus(missionId, orgId, 'planning');

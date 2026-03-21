@@ -933,6 +933,14 @@ export async function createLocalServer(_port = 3000) {
     }
   });
 
+  /** Remove duplicate checklist items from a mission */
+  server.post('/api/missions/:id/dedup', async (request) => {
+    const { id } = request.params as { id: string };
+    const { dedupMissionItems } = await import('../missions/service.js');
+    const removed = await dedupMissionItems(id);
+    return { success: true, removed };
+  });
+
   /** Get chat history for a mission channel */
   server.get('/api/missions/:id/chat', async (request) => {
     const { id } = request.params as { id: string };
