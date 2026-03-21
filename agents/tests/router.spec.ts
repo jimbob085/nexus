@@ -12,7 +12,7 @@ import {
 
 // These mocks must be declared before any dynamic imports.
 // vi.mock() calls are hoisted to the top of the file by vitest.
-vi.mock('@google/genai');
+vi.mock('@google/generative-ai');
 vi.mock('fs');
 vi.mock('../../src/core/guardrails/prompt_injection', () => ({
   checkForInjection: vi.fn().mockReturnValue({ detected: false }),
@@ -47,15 +47,15 @@ describe('router regression: single-agent routing (anti-chatter)', () => {
       JSON.stringify({ ENABLE_STRUCTURED_INTENT: true }),
     );
 
-    // Set up @google/genai mock
-    const genaiModule = await import('@google/genai');
+    // Set up @google/generative-ai mock
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn();
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       function () {
         return {
-          models: {
+          getGenerativeModel: () => ({
             generateContent: mockGenerateContent,
-          },
+          }),
         } as any;
       },
     );
@@ -85,7 +85,7 @@ describe('router regression: single-agent routing (anti-chatter)', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const results = await routeMessage(
@@ -115,7 +115,7 @@ describe('router regression: single-agent routing (anti-chatter)', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const allResults = await Promise.all(

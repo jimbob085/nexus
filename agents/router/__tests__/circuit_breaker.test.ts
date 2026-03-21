@@ -3,7 +3,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { RouteResult } from '../../types/routing';
 
 // These mocks must be declared before any dynamic imports.
-vi.mock('@google/genai');
+vi.mock('@google/generative-ai');
 vi.mock('fs');
 vi.mock('../../../src/core/guardrails/prompt_injection', () => ({
   checkForInjection: vi.fn().mockReturnValue({ detected: false }),
@@ -118,10 +118,10 @@ describe('routeMessage with circuit breaker', () => {
       JSON.stringify({ ENABLE_STRUCTURED_INTENT: true }),
     );
 
-    // Set up @google/genai mock — always returns ProposeTask with confidence 0.9
-    const genaiModule = await import('@google/genai');
+    // Set up @google/generative-ai mock — always returns ProposeTask with confidence 0.9
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn().mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'ProposeTask',
         confidenceScore: 0.9,
         targetAgent: 'product-manager',
@@ -130,14 +130,14 @@ describe('routeMessage with circuit breaker', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       function () {
         return {
-          models: {
+          getGenerativeModel: () => ({
             generateContent: mockGenerateContent,
-          },
+          }),
         } as any;
       },
     );
@@ -201,7 +201,7 @@ describe('routeMessage with circuit breaker', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     });
-    mockGenerateContent.mockResolvedValue({ text: llmPayload });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => llmPayload } });
 
     // Turn 1: normal
     await routeMessage('Create a task', 'channel-x', 'user', sessionId);
@@ -225,7 +225,7 @@ describe('routeMessage with circuit breaker', () => {
 
     mockGenerateContent
       .mockResolvedValueOnce({
-        text: JSON.stringify({
+        response: { text: () => JSON.stringify({
           intent: 'ProposeTask',
           confidenceScore: 0.9,
           targetAgent: 'product-manager',
@@ -234,10 +234,10 @@ describe('routeMessage with circuit breaker', () => {
           needsCodeAccess: false,
           isStrategySession: false,
           requiresConfirmation: false,
-        }),
+        }) },
       })
       .mockResolvedValueOnce({
-        text: JSON.stringify({
+        response: { text: () => JSON.stringify({
           intent: 'QueryKnowledge',
           confidenceScore: 0.85,
           targetAgent: 'nexus',
@@ -246,7 +246,7 @@ describe('routeMessage with circuit breaker', () => {
           needsCodeAccess: false,
           isStrategySession: false,
           requiresConfirmation: false,
-        }),
+        }) },
       });
 
     lockIntent(sessionId, 'ProposeTask', 'rbac_rejection');
@@ -286,13 +286,13 @@ describe('routeMessage with circuit breaker', () => {
       JSON.stringify({ ENABLE_STRUCTURED_INTENT: false }),
     );
 
-    const genaiModule = await import('@google/genai');
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn();
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       () =>
         ({
-          models: { generateContent: mockGenerateContent },
-        }) as unknown as InstanceType<typeof genaiModule.GoogleGenAI>,
+          getGenerativeModel: () => ({ generateContent: mockGenerateContent }),
+        }) as unknown as InstanceType<typeof genaiModule.GoogleGenerativeAI>,
     );
 
     const router = await import('../index.js');
@@ -326,9 +326,9 @@ describe('routeMessage with circuit breaker', () => {
       JSON.stringify({ ENABLE_STRUCTURED_INTENT: true }),
     );
 
-    const genaiModule = await import('@google/genai');
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn().mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'ProposeTask',
         confidenceScore: 0.9,
         targetAgent: 'product-manager',
@@ -337,11 +337,11 @@ describe('routeMessage with circuit breaker', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       function () {
-        return { models: { generateContent: mockGenerateContent } } as any;
+        return { getGenerativeModel: () => ({ generateContent: mockGenerateContent }) } as any;
       },
     );
 

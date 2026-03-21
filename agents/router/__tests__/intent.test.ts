@@ -11,7 +11,7 @@ const { mockLogSecurityEventFn, mockLogAdminClarificationFn } = vi.hoisted(() =>
 
 // These mocks must be declared before any dynamic imports.
 // vi.mock() calls are hoisted to the top of the file by vitest.
-vi.mock('@google/genai');
+vi.mock('@google/generative-ai');
 vi.mock('fs');
 vi.mock('../../telemetry/logger.js', () => ({
   logRoutingDecision: vi.fn(),
@@ -45,14 +45,12 @@ describe('routeMessage', () => {
     );
 
     // Set up @google/genai mock
-    const genaiModule = await import('@google/genai');
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn();
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       function() {
         return {
-          models: {
-            generateContent: mockGenerateContent,
-          },
+          getGenerativeModel: () => ({ generateContent: mockGenerateContent }),
         } as any;
       }
     );
@@ -82,7 +80,7 @@ describe('routeMessage', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const results = await routeMessage(
@@ -117,7 +115,7 @@ describe('routeMessage', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const results = await routeMessage('Hmm...', 'channel-2', 'bob');
@@ -169,15 +167,13 @@ describe('routeMessage', () => {
     );
 
     // Also re-setup the genai mock so the constructor is still stubbed
-    const genaiModule = await import('@google/genai');
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn();
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       () =>
         ({
-          models: {
-            generateContent: mockGenerateContent,
-          },
-        }) as unknown as InstanceType<typeof genaiModule.GoogleGenAI>,
+          getGenerativeModel: () => ({ generateContent: mockGenerateContent }),
+        }) as unknown as InstanceType<typeof genaiModule.GoogleGenerativeAI>,
     );
 
     // Re-import router so it reads the updated flag
@@ -230,7 +226,7 @@ describe('routeMessage', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const results = await routeMessage(
@@ -304,7 +300,7 @@ describe('routeMessage', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const result = await routeMessage('delete ticket 123', 'channel-9', 'grace');
@@ -329,7 +325,7 @@ describe('routeMessage', () => {
     };
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify(geminiPayload),
+      response: { text: () => JSON.stringify(geminiPayload) },
     });
 
     const result = await routeMessage(
@@ -374,7 +370,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage('change some system settings', 'channel-12', 'user');
 
@@ -396,7 +392,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage('set log level to info', 'channel-13', 'user');
 
@@ -419,7 +415,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: true,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage('disable rate limiting', 'channel-14', 'user');
 
@@ -444,7 +440,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage(
       'just give me your analysis, do NOT create any tickets',
@@ -499,7 +495,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage('turn that thing on', 'channel-18', 'user18');
 
@@ -520,7 +516,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: true,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     const results = await routeMessage('enable autonomous mode', 'channel-19', 'user19');
 
@@ -542,7 +538,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     await routeMessage('turn that thing on', 'channel-20', 'user20');
 
@@ -567,7 +563,7 @@ describe('routeMessage', () => {
       isStrategySession: false,
       requiresConfirmation: false,
     };
-    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+    mockGenerateContent.mockResolvedValue({ response: { text: () => JSON.stringify(geminiPayload) } });
 
     await routeMessage('hmm not sure what I need', 'channel-21', 'user21');
 

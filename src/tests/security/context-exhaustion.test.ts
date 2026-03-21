@@ -4,7 +4,7 @@ import type { RouteResult } from '../../../agents/types/routing.js';
 
 // These mocks must be declared before any dynamic imports.
 // vi.mock() calls are hoisted to the top of the file by vitest.
-vi.mock('@google/genai');
+vi.mock('@google/generative-ai');
 vi.mock('fs');
 vi.mock('../../../src/core/guardrails/prompt_injection.js', () => ({
   checkForInjection: vi.fn().mockReturnValue({ detected: false }),
@@ -38,15 +38,15 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
       JSON.stringify({ ENABLE_STRUCTURED_INTENT: true }),
     );
 
-    // Set up @google/genai mock
-    const genaiModule = await import('@google/genai');
+    // Set up @google/generative-ai mock
+    const genaiModule = await import('@google/generative-ai');
     mockGenerateContent = vi.fn();
-    vi.mocked(genaiModule.GoogleGenAI).mockImplementation(
+    vi.mocked(genaiModule.GoogleGenerativeAI).mockImplementation(
       function () {
         return {
-          models: {
+          getGenerativeModel: () => ({
             generateContent: mockGenerateContent,
-          },
+          }),
         } as any;
       },
     );
@@ -67,7 +67,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
     const longMessage = 'a'.repeat(5000);
 
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'GeneralInquiry',
         confidenceScore: 0.7,
         targetAgent: 'nexus',
@@ -76,7 +76,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
 
     await expect(
@@ -93,7 +93,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
 
     // Simulate the LLM returning a well-formed response despite the injection attempt
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'GeneralInquiry',
         confidenceScore: 0.5,
         targetAgent: 'nexus',
@@ -102,7 +102,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
 
     await expect(
@@ -115,7 +115,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
   // ---------------------------------------------------------------------------
   it('CE-003: returns parse-error fallback when LLM returns an out-of-enum intent', async () => {
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'ModifySystemSettings', // Not in IntentSchema enum
         confidenceScore: 0.95,
         targetAgent: 'admin',
@@ -124,7 +124,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
 
     const results = await routeMessage(
@@ -141,7 +141,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
   // ---------------------------------------------------------------------------
   it('CE-004: returns parse-error fallback when LLM returns confidenceScore > 1.0', async () => {
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'InvestigateBug',
         confidenceScore: 1.5, // Exceeds max(1)
         targetAgent: 'sre',
@@ -150,7 +150,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
 
     const results = await routeMessage(
@@ -167,7 +167,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
   // ---------------------------------------------------------------------------
   it('CE-005: returns parse-error fallback when LLM returns confidenceScore < 0.0', async () => {
     mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
+      response: { text: () => JSON.stringify({
         intent: 'QueryKnowledge',
         confidenceScore: -0.5, // Below min(0)
         targetAgent: 'nexus',
@@ -176,7 +176,7 @@ describe('Security: Context Exhaustion and Adversarial Input', () => {
         needsCodeAccess: false,
         isStrategySession: false,
         requiresConfirmation: false,
-      }),
+      }) },
     });
 
     const results = await routeMessage(

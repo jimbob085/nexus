@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { IntentResponseSchema, INTENT_RESPONSE_JSON_SCHEMA } from '../schemas/intent.js';
 import type { RouteResult, FeatureFlags } from '../types/routing.js';
 import { logRoutingDecision, logger, logSecurityEvent, logAdministrativeIntentClarificationEvent } from '../telemetry/logger.js';
@@ -86,18 +86,17 @@ export async function routeMessage(
 
     try {
       const prompt = buildIntentPrompt(content, AGENT_IDS);
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-      const response = await ai.models.generateContent({
+      const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '');
+      const model = ai.getGenerativeModel({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
+        generationConfig: {
           responseMimeType: 'application/json',
-          responseSchema: INTENT_RESPONSE_JSON_SCHEMA,
+          responseSchema: INTENT_RESPONSE_JSON_SCHEMA as any,
         },
       });
 
-      const text = response.text;
+      const response = await model.generateContent(prompt);
+      const text = response.response.text();
       const elapsedMs = Date.now() - startTime;
 
       let parsed: any;
