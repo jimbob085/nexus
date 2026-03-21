@@ -229,22 +229,41 @@ export class LocalExecutingTicketTracker extends LocalTicketTracker {
 
   private async captureGitDiff(repoPath: string): Promise<string | null> {
     try {
-      // Get diff of uncommitted changes + last commit diff
+      let diffContent = '';
+
+      // Check for uncommitted changes first
       const { stdout: staged } = await execFileAsync('git', ['diff', '--staged', '--stat'], { cwd: repoPath });
       const { stdout: unstaged } = await execFileAsync('git', ['diff', '--stat'], { cwd: repoPath });
-      const { stdout: lastCommit } = await execFileAsync(
-        'git', ['log', '-1', '--format=%H %s', '--name-status'],
-        { cwd: repoPath },
-      );
 
-      // Get the actual diff content
-      let diffContent = '';
       if (staged.trim() || unstaged.trim()) {
         const { stdout } = await execFileAsync('git', ['diff', 'HEAD'], { cwd: repoPath });
         diffContent = stdout;
-      } else if (lastCommit.trim()) {
-        // Changes were already committed — diff against parent
-        const { stdout } = await execFileAsync('git', ['diff', 'HEAD~1', 'HEAD'], { cwd: repoPath }).catch(() => ({ stdout: '' }));
+      }
+
+      // Also capture committed changes — diff against merge-base with main/master
+      // This catches ALL commits on the branch, not just the last one
+      for (const base of ['main', 'master']) {
+        try {
+          const { stdout: mergeBase } = await execFileAsync(
+            'git', ['merge-base', base, 'HEAD'], { cwd: repoPath },
+          );
+          if (mergeBase.trim()) {
+            const { stdout } = await execFileAsync(
+              'git', ['diff', mergeBase.trim(), 'HEAD'], { cwd: repoPath },
+            );
+            if (stdout.trim()) {
+              diffContent = diffContent ? diffContent + '\n' + stdout : stdout;
+            }
+            break; // Found a valid base
+          }
+        } catch { /* base branch doesn't exist, try next */ }
+      }
+
+      // Fallback: if no merge-base found, diff last commit
+      if (!diffContent) {
+        const { stdout } = await execFileAsync(
+          'git', ['diff', 'HEAD~1', 'HEAD'], { cwd: repoPath },
+        ).catch(() => ({ stdout: '' }));
         diffContent = stdout;
       }
 
