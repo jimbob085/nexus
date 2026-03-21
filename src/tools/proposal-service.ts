@@ -8,6 +8,7 @@ import { logger } from '../logger.js';
 import type { AgentId } from '../agents/types.js';
 import { parseArgs } from '../utils/parse-args.js';
 import { onProposalCreated } from '../nexus/scheduler.js';
+import { logAdrEvent } from '../../agents/telemetry/logger.js';
 
 export interface TicketProposalInput {
   orgId: string;
@@ -161,6 +162,7 @@ export async function createTicketProposal(input: TicketProposalInput): Promise<
   // AI-based deduplication
   const duplicateMatch = await checkDuplicateTicket(title, fullDescription, orgId);
   if (duplicateMatch) {
+    logAdrEvent('duplicate_proposal_prevented', { orgId, proposalTitle: title, matchedTitle: duplicateMatch });
     return {
       success: false,
       duplicate: true,
