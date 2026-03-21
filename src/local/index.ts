@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { sql } from 'drizzle-orm';
 import { logger } from '../logger.js';
 import { db, runMigrations, closeDb } from '../db/index.js';
+import { restoreFromBackup, startBackupScheduler, stopBackupScheduler } from '../db/backup.js';
 import { workspaceLinks } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { initAdapters } from '../adapters/registry.js';
@@ -195,6 +196,10 @@ async function main() {
     await runMigrations();
     logger.info('Database migrations applied');
 
+    // Restore from backup if database was reset (e.g., PGlite corruption recovery)
+    const restored = await restoreFromBackup();
+    if (restored) logger.info('Database restored from backup');
+
     // Ensure local workspace exists
     await ensureLocalWorkspace();
 
@@ -223,6 +228,9 @@ async function main() {
     // Start usage reporter (noop in local mode but keeps the system happy)
     usageReporter.start();
 
+    // Start periodic database backups (protects against PGlite corruption data loss)
+    startBackupScheduler();
+
     logger.info('Local Nexus Command online');
   } catch (err) {
     logger.error({ err }, 'Failed to start local Nexus Command');
@@ -236,6 +244,7 @@ main();
 
 async function gracefulShutdown() {
   logger.info('Shutting down...');
+  await stopBackupScheduler(); // Final backup before exit
   await usageReporter.stop();
   await closeDb();
   process.exit(0);
