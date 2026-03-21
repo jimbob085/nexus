@@ -119,6 +119,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
@@ -129,6 +131,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-vitest": "^0.5.4",
     "prettier": "^3.8.1",
+    "semantic-release": "^24.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
