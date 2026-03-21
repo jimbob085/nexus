@@ -58,16 +58,46 @@ export class OllamaProvider implements LLMProvider {
 
   async generateWithTools(options: GenerateWithToolsOptions): Promise<LLMToolCallResult> {
     const model = this.modelMap[options.model];
-    const messages: Array<{ role: string; content: string }> = [];
+    const messages: Array<{ role: string; content: string; tool_calls?: unknown[]; tool_call_id?: string }> = [];
 
     if (options.systemInstruction) {
       messages.push({ role: 'system', content: options.systemInstruction });
     }
     for (const c of options.contents) {
-      messages.push({
-        role: c.role === 'model' ? 'assistant' : c.role,
-        content: c.parts.map(p => p.text ?? '').join(''),
-      });
+      const hasFunctionCall = c.parts.some(p => p.functionCall);
+      const hasFunctionResponse = c.parts.some(p => p.functionResponse);
+
+      if (hasFunctionCall) {
+        const textContent = c.parts.filter(p => p.text).map(p => p.text).join('');
+        const toolCalls = c.parts
+          .filter(p => p.functionCall)
+          .map(p => ({
+            id: p.functionCall!.id ?? `call_${Math.random().toString(36).slice(2, 10)}`,
+            type: 'function',
+            function: {
+              name: p.functionCall!.name,
+              arguments: p.functionCall!.args,
+            },
+          }));
+        messages.push({ role: 'assistant', content: textContent, tool_calls: toolCalls });
+      } else if (hasFunctionResponse) {
+        for (const p of c.parts) {
+          if (p.functionResponse) {
+            messages.push({
+              role: 'tool',
+              content: typeof p.functionResponse.response === 'string'
+                ? p.functionResponse.response
+                : JSON.stringify(p.functionResponse.response),
+              tool_call_id: p.functionResponse.id ?? 'unknown',
+            });
+          }
+        }
+      } else {
+        messages.push({
+          role: c.role === 'model' ? 'assistant' : c.role,
+          content: c.parts.map(p => p.text ?? '').join(''),
+        });
+      }
     }
 
     const tools = options.tools.map(t => ({

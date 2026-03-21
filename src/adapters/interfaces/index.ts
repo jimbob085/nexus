@@ -24,3 +24,5 @@ export type {
   GenerateTextOptions,
   GenerateWithToolsOptions,
 } from './llm-provider.js';
+export type { SourceExplorer, DirectoryEntry, CodeSearchMatch } from './source-explorer.js';
+export type { WorkspaceProvider, WorkspaceHandle } from './workspace-provider.js';

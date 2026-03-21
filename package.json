@@ -75,6 +75,18 @@
       "types": "./dist/src/adapters/interfaces/usage-sink.d.ts",
       "import": "./dist/src/adapters/interfaces/usage-sink.js"
     },
+    "./adapters/interfaces/source-explorer": {
+      "types": "./dist/src/adapters/interfaces/source-explorer.d.ts",
+      "import": "./dist/src/adapters/interfaces/source-explorer.js"
+    },
+    "./adapters/interfaces/workspace-provider": {
+      "types": "./dist/src/adapters/interfaces/workspace-provider.d.ts",
+      "import": "./dist/src/adapters/interfaces/workspace-provider.js"
+    },
+    "./workspace/tools": {
+      "types": "./dist/src/workspace/tools.d.ts",
+      "import": "./dist/src/workspace/tools.js"
+    },
     "./adapters/registry": {
       "types": "./dist/src/adapters/registry.d.ts",
       "import": "./dist/src/adapters/registry.js"

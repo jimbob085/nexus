@@ -6,6 +6,8 @@ import type { ProjectRegistry } from './interfaces/project-registry.js';
 import type { TicketTracker } from './interfaces/ticket-tracker.js';
 import type { TenantResolver } from './interfaces/tenant-resolver.js';
 import type { LLMProvider } from './interfaces/llm-provider.js';
+import type { SourceExplorer } from './interfaces/source-explorer.js';
+import type { WorkspaceProvider } from './interfaces/workspace-provider.js';
 
 export interface AdapterSet {
   usageSink: UsageSink;
@@ -16,6 +18,8 @@ export interface AdapterSet {
   ticketTracker: TicketTracker;
   tenantResolver: TenantResolver;
   llmProvider: LLMProvider;
+  sourceExplorer?: SourceExplorer;
+  workspaceProvider?: WorkspaceProvider;
 }
 
 let adapters: AdapterSet | null = null;
@@ -71,4 +75,12 @@ export function setTicketTracker(tracker: TicketTracker): void {
 /** Hot-swap the LLM provider at runtime (used by setup flow) */
 export function setLLMProvider(provider: LLMProvider): void {
   get().llmProvider = provider;
+}
+
+export function getSourceExplorer(): SourceExplorer | null {
+  return adapters?.sourceExplorer ?? null;
+}
+
+export function getWorkspaceProvider(): WorkspaceProvider | null {
+  return adapters?.workspaceProvider ?? null;
 }

@@ -12,6 +12,13 @@ vi.mock('../adapters/registry.js', () => ({
     createSuggestion: vi.fn(),
     createTicket: vi.fn(),
   }),
+  getSourceExplorer: () => null,
+  getWorkspaceProvider: () => null,
+  getProjectRegistry: () => ({
+    listProjects: vi.fn().mockResolvedValue([]),
+    resolveProjectId: vi.fn().mockResolvedValue(undefined),
+    resolveRepoKey: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 vi.mock('../logger.js', () => ({
   logger: {

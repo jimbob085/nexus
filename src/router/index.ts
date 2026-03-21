@@ -58,11 +58,16 @@ Example: [{"agentId": "sre", "intent": "investigation", "subMessage": "Investiga
     try {
       const cleaned = response.trim().replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
       const results = JSON.parse(cleaned) as RouteResult[];
-      
+
+      // Detect deep research requests based on investigation keywords
+      const deepResearchKeywords = /\b(investigate|trace through|audit thoroughly|analyze security of|deep dive|root cause analysis)\b/i;
       for (const res of results) {
+        if (res.needsCodeAccess && deepResearchKeywords.test(content)) {
+          res.needsDeepResearch = true;
+        }
         logRoutingDecision(res, 0);
       }
-      
+
       return results;
     } catch (err) {
       logger.error({ err, response }, 'Failed to parse router response');

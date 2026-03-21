@@ -652,7 +652,7 @@ export async function buildAgentPrompt(
   agentId: AgentId,
   channelId: string,
   orgId: string,
-  options?: { stripMutativeTools?: boolean },
+  options?: { stripMutativeTools?: boolean; hasCodeTools?: boolean },
 ): Promise<string> {
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`Agent ${agentId} not found`);
@@ -760,6 +760,25 @@ export async function buildAgentPrompt(
   // Knowledge base hint — only when the org has no shared knowledge or agent memories
   if (shared.length === 0 && memories.length === 0) {
     sections.push(`# Knowledge Base Status\nThis organization's knowledge base is empty. You have no documentation, project context, or prior notes to draw on. Keep your responses grounded in what the user tells you directly. Do not fabricate or assume knowledge about the organization's systems. Occasionally — not every message, roughly once every few conversations — you may mention that adding documentation or knowledge articles through the dashboard would help the team get more value from the agents.`);
+  }
+
+  // Code tools instructions
+  if (options?.hasCodeTools) {
+    sections.push(`# Code Exploration Tools
+You have access to tools that let you explore the source code of connected projects. Use these tools to answer questions about implementation details, architecture, and code quality.
+
+**Available tools:**
+- **read_file** — Read a file's contents (up to 100KB)
+- **list_directory** — List files and subdirectories
+- **search_code** — Search for text patterns across files
+- **get_file_tree** — Get the directory tree structure
+
+**Guidelines:**
+- Start with \`get_file_tree\` or \`list_directory\` to understand project structure before diving into specific files.
+- Use \`search_code\` to find relevant code before reading specific files.
+- Always use exact project names from the "Available Projects" section when calling tools.
+- You can make multiple tool calls in sequence — each round lets you refine your understanding.
+- Base your analysis on actual code you read, not assumptions.`);
   }
 
   // Instructions

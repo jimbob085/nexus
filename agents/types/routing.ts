@@ -12,6 +12,7 @@ export interface RouteResult {
   fallbackMessage?: string;
   isCircuitBroken?: boolean;
   isStrictConsultation?: boolean;
+  needsDeepResearch?: boolean;
 }
 
 export interface FeatureFlags {

@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { writeGeminiContext, buildAgentPrompt } from './prompt-builder.js';
-import { getLLMProvider } from '../adapters/registry.js';
+import { getLLMProvider, getSourceExplorer, getWorkspaceProvider } from '../adapters/registry.js';
 import { logger } from '../logger.js';
 import { logToolStrippingEvent } from '../../agents/telemetry/logger.js';
 import type { AgentId } from './types.js';
+import type { LLMContent } from '../adapters/interfaces/llm-provider.js';
 import { db } from '../db/index.js';
 import { pendingActions } from '../db/schema.js';
 import { and, eq, isNull, gte } from 'drizzle-orm';
@@ -19,10 +20,14 @@ import { shouldCreateSuggestion } from '../idle/throttle.js';
 import { sendApprovalMessage, sendAutonomousNotification, sendPublicChannelAlerts } from '../bot/interactions.js';
 import { getAgent } from './registry.js';
 import { parseArgs } from '../utils/parse-args.js';
+import { CODE_TOOL_DECLARATIONS, executeCodeTool } from './code-tools.js';
 
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT
   ?? (process.env.NODE_ENV === 'production' ? '/app' : process.cwd());
 const GEMINI_TIMEOUT_MS = 19 * 60 * 1000; // 19 minutes
+const MAX_TOOL_ROUNDS = 6;
+const DEEP_RESEARCH_MAX_TURNS = 25;
+const DEEP_RESEARCH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface SteeringContext {
   originalActionId: string;
@@ -45,15 +50,22 @@ export interface ExecuteAgentInput {
   steering?: SteeringContext;
   /** If true, strip all mutative XML tool instructions from the prompt and skip XML action block parsing. */
   isStrictConsultation?: boolean;
+  /** If true, use deep research mode with a cloned workspace (Plan B). */
+  needsDeepResearch?: boolean;
 }
 
 export async function executeAgent(input: ExecuteAgentInput): Promise<string | null> {
   // StrictConsultation always forces the fast path — no codebase access allowed
   if (input.isStrictConsultation) {
-    input = { ...input, needsCodeAccess: false };
+    input = { ...input, needsCodeAccess: false, needsDeepResearch: false };
   }
 
-  const { needsCodeAccess } = input;
+  const { needsCodeAccess, needsDeepResearch } = input;
+
+  // Deep research: cloned workspace with extended tool set
+  if (needsDeepResearch && getWorkspaceProvider() !== null) {
+    return executeDeepResearch(input);
+  }
 
   // Fast path: Gemini API (no CLI subprocess overhead)
   // Always use fast path when using embedded PGlite (CLI subprocesses can't access it)
@@ -78,7 +90,14 @@ async function executeFast(input: ExecuteAgentInput): Promise<string | null> {
       logToolStrippingEvent({ agentId, orgId, intent: 'StrictConsultation' });
     }
 
-    const systemPrompt = await buildAgentPrompt(agentId, channelId, orgId, input.isStrictConsultation ? { stripMutativeTools: true } : undefined);
+    const explorer = getSourceExplorer();
+    const hasCodeTools = input.needsCodeAccess !== false && explorer !== null;
+    const promptOptions = input.isStrictConsultation
+      ? { stripMutativeTools: true }
+      : hasCodeTools
+        ? { hasCodeTools: true }
+        : undefined;
+    const systemPrompt = await buildAgentPrompt(agentId, channelId, orgId, promptOptions);
 
     let fullUserMessage = userMessage;
     if (steering) {
@@ -93,12 +112,27 @@ Please refine your proposal based on this feedback.
 `.trim();
     }
 
-    const response = await getLLMProvider().generateText({
-      model: 'AGENT',
-      orgId,
-      systemInstruction: systemPrompt,
-      contents: [{ role: 'user', parts: [{ text: fullUserMessage }] }],
-    });
+    let response: string;
+
+    if (hasCodeTools && explorer) {
+      // Tool-use loop: multi-turn conversation with code exploration tools
+      response = await executeToolLoop({
+        orgId,
+        systemPrompt,
+        userMessage: fullUserMessage,
+        explorer,
+        maxRounds: MAX_TOOL_ROUNDS,
+        modelTier: 'AGENT',
+      });
+    } else {
+      // Single-shot: no code tools available
+      response = await getLLMProvider().generateText({
+        model: 'AGENT',
+        orgId,
+        systemInstruction: systemPrompt,
+        contents: [{ role: 'user', parts: [{ text: fullUserMessage }] }],
+      });
+    }
 
     if (!response || response.trim().length === 0) {
       logger.warn({ agentId }, 'Gemini API returned empty response');
@@ -543,6 +577,200 @@ Please refine your proposal based on this feedback.
     return null;
   } finally {
     await cleanup();
+  }
+}
+
+/**
+ * Multi-turn tool-use loop: calls the LLM with code tools, executes tool calls,
+ * and feeds results back until the LLM produces a final text response.
+ */
+async function executeToolLoop(opts: {
+  orgId: string;
+  systemPrompt: string;
+  userMessage: string;
+  explorer: import('../adapters/interfaces/source-explorer.js').SourceExplorer;
+  maxRounds: number;
+  modelTier: import('../adapters/interfaces/llm-provider.js').ModelTier;
+}): Promise<string> {
+  const { orgId, systemPrompt, userMessage, explorer, maxRounds, modelTier } = opts;
+  const contents: LLMContent[] = [{ role: 'user', parts: [{ text: userMessage }] }];
+
+  for (let round = 0; round < maxRounds; round++) {
+    const result = await getLLMProvider().generateWithTools({
+      model: modelTier,
+      orgId,
+      systemInstruction: systemPrompt,
+      contents,
+      tools: CODE_TOOL_DECLARATIONS,
+    });
+
+    if (result.functionCalls.length === 0) {
+      // No tool calls — this is the final text response
+      return result.text ?? '';
+    }
+
+    logger.info({ round, toolCalls: result.functionCalls.map(fc => fc.name), orgId }, 'Tool-use round');
+
+    // Build model turn with functionCall parts (include id for provider correlation)
+    const modelParts: LLMContent['parts'] = [];
+    if (result.text) {
+      modelParts.push({ text: result.text });
+    }
+    for (const fc of result.functionCalls) {
+      const callId = fc.id ?? `call_${Math.random().toString(36).slice(2, 10)}`;
+      modelParts.push({ functionCall: { name: fc.name, args: fc.args, id: callId } });
+    }
+    contents.push({ role: 'model', parts: modelParts });
+
+    // Execute each tool call and build functionResponse parts
+    const responseParts: LLMContent['parts'] = [];
+    for (let i = 0; i < result.functionCalls.length; i++) {
+      const fc = result.functionCalls[i];
+      const callId = (modelParts.find(p => p.functionCall?.name === fc.name) as any)?.functionCall?.id ?? fc.id;
+      const toolResult = await executeCodeTool(fc.name, fc.args, { orgId, explorer });
+      responseParts.push({
+        functionResponse: { name: fc.name, response: { result: toolResult }, id: callId },
+      });
+    }
+    contents.push({ role: 'user', parts: responseParts });
+  }
+
+  // Exhausted rounds — force a final text response
+  contents.push({ role: 'user', parts: [{ text: 'You have used all available tool rounds. Please provide your final answer now based on what you have learned.' }] });
+  const finalResponse = await getLLMProvider().generateText({
+    model: modelTier,
+    orgId,
+    systemInstruction: systemPrompt,
+    contents,
+  });
+  return finalResponse;
+}
+
+/** Process deep research result through the fast path for XML action block parsing. */
+async function processDeepResearchResult(input: ExecuteAgentInput, response: string, executionStart: Date): Promise<string | null> {
+  // Strip thought blocks and run through the same XML action block parsing as executeFast
+  // by calling executeFast with the response as a pre-computed result
+  // For simplicity, just do the post-processing inline
+  const { agentId, orgId } = input;
+  let cleaned = response.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+  await checkPendingActions(input, executionStart);
+  const proposalCount = await agentCreatedProposalsSince(agentId, orgId, executionStart);
+  return suppressProposalDetails(agentId, cleaned, proposalCount);
+}
+
+/** Deep research mode: clone workspace and explore with extended tools and budget. */
+async function executeDeepResearch(input: ExecuteAgentInput): Promise<string | null> {
+  const { orgId, agentId, channelId, userMessage, steering, source } = input;
+  logger.info({ orgId, agentId }, 'Deep research: starting');
+  const executionStart = new Date();
+
+  const workspaceProvider = getWorkspaceProvider();
+  if (!workspaceProvider) {
+    logger.warn({ agentId }, 'Deep research: no workspace provider, falling back to fast path');
+    return executeFast({ ...input, needsDeepResearch: false });
+  }
+
+  // Resolve which repo to clone — use the first project in the org
+  const projects = await (await import('../adapters/registry.js')).getProjectRegistry().listProjects(orgId);
+  if (projects.length === 0) {
+    logger.warn({ agentId }, 'Deep research: no projects, falling back to fast path');
+    return executeFast({ ...input, needsDeepResearch: false });
+  }
+
+  // Find a project with a repoKey
+  let repoKey: string | null = null;
+  for (const p of projects) {
+    if (p.repoKey) { repoKey = p.repoKey; break; }
+    const rk = await (await import('../adapters/registry.js')).getProjectRegistry().resolveRepoKey(p.id, orgId);
+    if (rk) { repoKey = rk; break; }
+  }
+
+  if (!repoKey) {
+    logger.warn({ agentId }, 'Deep research: no repoKey found, falling back to fast path');
+    return executeFast({ ...input, needsDeepResearch: false });
+  }
+
+  let workspace: import('../adapters/interfaces/workspace-provider.js').WorkspaceHandle | null = null;
+  try {
+    workspace = await workspaceProvider.acquireWorkspace(orgId, repoKey);
+    logger.info({ agentId, repoPath: workspace.repoPath }, 'Deep research: workspace acquired');
+
+    // Dynamically import deep research tools
+    const { DEEP_TOOL_DECLARATIONS, executeDeepTool } = await import('../workspace/tools.js');
+
+    const systemPrompt = await buildAgentPrompt(agentId, channelId, orgId, { hasCodeTools: true });
+    const deepSystemPrompt = systemPrompt + '\n\n---\n\n# Deep Research Mode\nYou have access to a cloned copy of the repository with git tools. Take your time to thoroughly investigate the codebase. You can use git blame, git log, git diff, and other tools to trace code history and understand changes.';
+
+    let fullUserMessage = userMessage;
+    if (steering) {
+      fullUserMessage = `USER FEEDBACK: "${steering.userFeedback}"\nPREVIOUS PROPOSAL: "${steering.previousProposal}"\nPlease refine based on this feedback.`;
+    }
+
+    const contents: LLMContent[] = [{ role: 'user', parts: [{ text: fullUserMessage }] }];
+    const startTime = Date.now();
+
+    for (let round = 0; round < DEEP_RESEARCH_MAX_TURNS; round++) {
+      if (Date.now() - startTime > DEEP_RESEARCH_TIMEOUT_MS) {
+        logger.warn({ agentId, round }, 'Deep research: timeout reached');
+        break;
+      }
+
+      const result = await getLLMProvider().generateWithTools({
+        model: 'WORK',
+        orgId,
+        systemInstruction: deepSystemPrompt,
+        contents,
+        tools: DEEP_TOOL_DECLARATIONS,
+      });
+
+      if (result.functionCalls.length === 0) {
+        // Final text response
+        const response = result.text ?? '';
+        logger.info({ agentId, rounds: round + 1 }, 'Deep research: complete');
+        return await processDeepResearchResult(input, response, executionStart);
+      }
+
+      logger.info({ round, toolCalls: result.functionCalls.map(fc => fc.name) }, 'Deep research tool round');
+
+      // Build model turn with IDs for provider correlation
+      const modelParts: LLMContent['parts'] = [];
+      if (result.text) modelParts.push({ text: result.text });
+      for (const fc of result.functionCalls) {
+        const callId = fc.id ?? `call_${Math.random().toString(36).slice(2, 10)}`;
+        modelParts.push({ functionCall: { name: fc.name, args: fc.args, id: callId } });
+      }
+      contents.push({ role: 'model', parts: modelParts });
+
+      // Execute tools against workspace
+      const responseParts: LLMContent['parts'] = [];
+      for (let i = 0; i < result.functionCalls.length; i++) {
+        const fc = result.functionCalls[i];
+        const callId = (modelParts.find(p => p.functionCall?.name === fc.name) as any)?.functionCall?.id ?? fc.id;
+        const toolResult = await executeDeepTool(fc.name, fc.args, workspace.repoPath);
+        responseParts.push({
+          functionResponse: { name: fc.name, response: { result: toolResult }, id: callId },
+        });
+      }
+      contents.push({ role: 'user', parts: responseParts });
+    }
+
+    // Exhausted turns — force summary
+    contents.push({ role: 'user', parts: [{ text: 'You have used all available research rounds. Provide your final analysis and conclusions now.' }] });
+    const finalResponse = await getLLMProvider().generateText({
+      model: 'WORK',
+      orgId,
+      systemInstruction: deepSystemPrompt,
+      contents,
+    });
+    return await processDeepResearchResult(input, finalResponse, executionStart);
+  } catch (err) {
+    logger.error({ err, agentId }, 'Deep research failed');
+    // Fall back to fast path
+    return executeFast({ ...input, needsDeepResearch: false });
+  } finally {
+    if (workspace) {
+      await workspace.cleanup().catch(err => logger.error({ err }, 'Workspace cleanup failed'));
+    }
   }
 }
 

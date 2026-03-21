@@ -1,7 +1,12 @@
 /** Neutral content type — structurally compatible with @google/genai Content */
 export interface LLMContent {
   role: string;
-  parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> }; [key: string]: unknown }>;
+  parts: Array<{
+    text?: string;
+    functionCall?: { name: string; args: Record<string, unknown>; id?: string };
+    functionResponse?: { name: string; response: unknown; id?: string };
+    [key: string]: unknown;
+  }>;
 }
 
 /** Neutral function declaration — structurally compatible with @google/genai FunctionDeclaration */
@@ -30,6 +35,7 @@ export interface LLMToolCallResult {
   functionCalls: Array<{
     name: string;
     args: Record<string, unknown>;
+    id?: string;
   }>;
   raw: unknown;
 }
