@@ -8,6 +8,7 @@ import { logger } from '../logger.js';
 import type { AgentId } from '../agents/types.js';
 import { parseArgs } from '../utils/parse-args.js';
 import { onProposalCreated } from '../nexus/scheduler.js';
+import { logCrossAgentConflictResolved } from '../telemetry/cross-agent.js';
 
 export interface TicketProposalInput {
   orgId: string;
@@ -161,6 +162,12 @@ export async function createTicketProposal(input: TicketProposalInput): Promise<
   // AI-based deduplication
   const duplicateMatch = await checkDuplicateTicket(title, fullDescription, orgId);
   if (duplicateMatch) {
+    logCrossAgentConflictResolved({
+      orgId,
+      proposingAgentId: agentId,
+      newTitle: title,
+      matchedTitle: duplicateMatch,
+    });
     return {
       success: false,
       duplicate: true,
