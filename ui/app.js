@@ -1657,7 +1657,7 @@ async function loadMissionChecklist(missionId) {
     if (!data.mission || !missionChecklistEl) return;
 
     const m = data.mission;
-    const items = m.items || [];
+    const items = data.items || m.items || [];
 
     let html = `<div class="checklist-header">
       <h4>${escapeHtml(m.title)}</h4>
