@@ -113,5 +113,20 @@ export async function initializeAgents(): Promise<AgentDefinition[]> {
   await syncAgentsToDb(definitions);
 
   registry = new Map(definitions.map((d) => [d.id, d]));
-  return definitions;
+
+  // Also load any agents from DB that aren't in persona files (e.g. imported agents restored from backup)
+  const dbAgents = await db.select().from(agents);
+  for (const row of dbAgents) {
+    if (!registry.has(row.id as AgentId)) {
+      const def: AgentDefinition = {
+        id: row.id as AgentId,
+        title: row.title,
+        personaMd: row.personaMd,
+      };
+      registry.set(def.id, def);
+      logger.debug({ agentId: def.id }, 'Loaded imported agent from DB');
+    }
+  }
+
+  return Array.from(registry.values());
 }
