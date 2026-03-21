@@ -573,4 +573,28 @@ describe('routeMessage', () => {
 
     expect(mockLogAdminClarificationFn).not.toHaveBeenCalled();
   });
+
+  // ---------------------------------------------------------------------------
+  // Test 22: Partial extraction (settingKey present, settingValue absent) → score between 0.6 and 0.8
+  // ---------------------------------------------------------------------------
+  it('routes AdministrativeAction with partial extraction (0.6–0.8) to agent without fallback', async () => {
+    const geminiPayload = {
+      intent: 'AdministrativeAction',
+      confidenceScore: 0.72,
+      targetAgent: 'nexus',
+      extractedEntities: { settingKey: 'logLevel' },
+      reasoning: 'User wants to change log level but did not specify the target value.',
+      needsCodeAccess: false,
+      isStrategySession: false,
+      requiresConfirmation: false,
+    };
+    mockGenerateContent.mockResolvedValue({ text: JSON.stringify(geminiPayload) });
+
+    const results = await routeMessage('change the log level', 'channel-22', 'user22');
+
+    expect(results[0].isFallback).toBe(false);
+    expect(results[0].intent).toBe('AdministrativeAction');
+    expect(results[0].confidenceScore).toBeGreaterThanOrEqual(0.6);
+    expect(results[0].confidenceScore).toBeLessThan(0.8);
+  });
 });

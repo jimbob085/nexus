@@ -34,7 +34,9 @@ Analyze the message and return a structured classification with:
 
 For AdministrativeAction, always populate extractedEntities with settingKey (the configuration key) and settingValue (the desired new value) if discernible.
 
-Confidence-scoring rule: when classifying a message as AdministrativeAction, the confidenceScore MUST fall below 0.6 if neither settingKey nor settingValue can be extracted from the utterance. A vague reference to "settings" or "configuration" without specifying which setting or what value to apply is insufficient to route with high confidence and must be reflected by a sub-0.6 score.
+Confidence-scoring rules for AdministrativeAction:
+1. The confidenceScore MUST fall below 0.6 if neither settingKey nor settingValue can be extracted from the utterance. A vague reference to "settings" or "configuration" without specifying which setting or what value to apply is insufficient to route with high confidence and must be reflected by a sub-0.6 score.
+2. The confidenceScore SHOULD be above 0.8 only when both settingKey and settingValue are clearly and unambiguously extractable from the utterance. Partial extraction (e.g., settingKey present but settingValue absent or vice versa) must result in a score between 0.6 and 0.8, not above it.
 
 Examples:
 
