@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { eq, and, desc, lt, gt, ilike, sql, count } from 'drizzle-orm';
+import { eq, and, desc, lt, gt, gte, lte, ilike, sql, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { conversationHistory, workspaceLinks, agents } from '../db/schema.js';
 import { config } from '../config.js';
@@ -190,8 +190,8 @@ export const internalChatRoutes: FastifyPluginAsync = async (fastify) => {
     if (agentId) conditions.push(eq(conversationHistory.agentId, agentId));
     if (isAgentStr === 'true') conditions.push(eq(conversationHistory.isAgent, true));
     if (isAgentStr === 'false') conditions.push(eq(conversationHistory.isAgent, false));
-    if (startDate) conditions.push(sql`${conversationHistory.createdAt} >= ${new Date(startDate)}`);
-    if (endDate) conditions.push(sql`${conversationHistory.createdAt} <= ${new Date(endDate)}`);
+    if (startDate) conditions.push(gte(conversationHistory.createdAt, new Date(startDate)));
+    if (endDate) conditions.push(lte(conversationHistory.createdAt, new Date(endDate)));
 
     const [results, [totalRow]] = await Promise.all([
       db
@@ -232,7 +232,7 @@ export const internalChatRoutes: FastifyPluginAsync = async (fastify) => {
     const days = parseInt(daysStr || '30', 10) || 30;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const baseConditions = [sql`${conversationHistory.createdAt} >= ${since}`];
+    const baseConditions = [gte(conversationHistory.createdAt, since)];
     if (orgId) baseConditions.push(eq(conversationHistory.orgId, orgId));
 
     const [
