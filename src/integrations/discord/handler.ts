@@ -12,6 +12,7 @@ import {
 import { routeIntent, RouterResult } from '../../intent/router.js';
 import { getLinkedAccount } from '../../auth/account_linker.js';
 import { RequestContext } from '../../rbac/types.js';
+import { requestAdminApproval } from './autonomous-mode-gate.js';
 
 const CONFIRMATION_TIMEOUT_MS = 60_000;
 let cancellationCounter = 0;
@@ -66,45 +67,63 @@ export async function handleDiscordMessage(message: Message): Promise<void> {
 
   // Confirmation gate for state-mutating intents
   if (result.requiresConfirmation && result.intent) {
-    const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('confirm')
-        .setLabel('Confirm')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('cancel')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Danger),
-    );
+    if (result.intent.kind === 'ManageProject') {
+      // ManageProject covers sensitive system settings (e.g. autonomous_mode).
+      // Use the Admin/Owner-only HITL gate with a 5-minute fail-closed timeout.
+      const settingKey =
+        result.intent.params?.settingKey ??
+        result.intent.params?.setting_key ??
+        'project configuration';
+      const actionDescription =
+        Object.values(result.intent.params ?? {}).filter(Boolean).join(', ') ||
+        'project configuration change';
 
-    const confirmMsg = await message.reply({
-      content: `Are you sure you want to **${result.intent.kind}**? This action will modify system state.`,
-      components: [confirmRow],
-    });
-
-    try {
-      const interaction = await confirmMsg.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        time: CONFIRMATION_TIMEOUT_MS,
-        filter: (i) => i.user.id === message.author.id,
-      });
-
-      if (interaction.customId === 'cancel') {
-        cancellationCounter++;
-        await interaction.update({ content: 'Action cancelled.', components: [] });
+      const approval = await requestAdminApproval(message, actionDescription, settingKey);
+      if (!approval.approved) {
         return;
       }
+    } else {
+      // Standard confirm/cancel gate for other state-mutating intents (e.g. ProposeTask).
+      const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('confirm')
+          .setLabel('Confirm')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('cancel')
+          .setLabel('Cancel')
+          .setStyle(ButtonStyle.Danger),
+      );
 
-      await interaction.update({
-        content: `Executing **${result.intent.kind}**...`,
-        components: [],
+      const confirmMsg = await message.reply({
+        content: `Are you sure you want to **${result.intent.kind}**? This action will modify system state.`,
+        components: [confirmRow],
       });
-    } catch {
-      // Timeout
-      await confirmMsg
-        .edit({ content: 'Confirmation timed out. Action cancelled.', components: [] })
-        .catch(() => {});
-      return;
+
+      try {
+        const interaction = await confirmMsg.awaitMessageComponent({
+          componentType: ComponentType.Button,
+          time: CONFIRMATION_TIMEOUT_MS,
+          filter: (i) => i.user.id === message.author.id,
+        });
+
+        if (interaction.customId === 'cancel') {
+          cancellationCounter++;
+          await interaction.update({ content: 'Action cancelled.', components: [] });
+          return;
+        }
+
+        await interaction.update({
+          content: `Executing **${result.intent.kind}**...`,
+          components: [],
+        });
+      } catch {
+        // Timeout
+        await confirmMsg
+          .edit({ content: 'Confirmation timed out. Action cancelled.', components: [] })
+          .catch(() => {});
+        return;
+      }
     }
   }
 
