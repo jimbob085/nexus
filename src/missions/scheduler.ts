@@ -1,5 +1,6 @@
 import { executeAgent } from '../agents/executor.js';
 import { sendAgentMessage } from '../bot/formatter.js';
+import { localBus } from '../local/communication-adapter.js';
 import { storeMessage } from '../conversation/service.js';
 import { routeMessage } from '../router/index.js';
 import { getAgent } from '../agents/registry.js';
