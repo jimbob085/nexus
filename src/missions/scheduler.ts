@@ -100,11 +100,13 @@ async function reconcileItemsWithTickets(
   for (const item of items) {
     if (item.status === 'verified') continue;
 
-    // Find matching tickets by fuzzy title match
-    const keywords = item.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    // Find matching tickets — require at least 50% keyword overlap
+    const reconStopWords = new Set(['implement','create','build','add','update','with','from','into','the','and','for']);
+    const keywords = item.title.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !reconStopWords.has(w));
+    const reconMinMatches = Math.max(2, Math.ceil(keywords.length * 0.5));
     const matching = orgTickets.filter(t => {
       const titleLower = t.title.toLowerCase();
-      return keywords.some(kw => titleLower.includes(kw));
+      return keywords.filter(kw => titleLower.includes(kw)).length >= reconMinMatches;
     });
 
     if (matching.length === 0) continue;
@@ -242,10 +244,13 @@ If an item should be removed entirely (duplicate or no longer relevant):
       title: tickets.title,
     }).from(tickets).where(eq(tickets.orgId, mission.orgId)).limit(50);
 
+    const runStopWords = new Set(['implement','create','build','add','update','with','from','into','the','and','for']);
+    const runKeywords = focusItem.title.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !runStopWords.has(w));
+    const runMinMatches = Math.max(2, Math.ceil(runKeywords.length * 0.5));
     const hasRunningTicket = orgTickets.some(t => {
       if (t.executionStatus !== 'running') return false;
       const titleLower = t.title.toLowerCase();
-      return keywords.some(kw => titleLower.includes(kw));
+      return runKeywords.filter(kw => titleLower.includes(kw)).length >= runMinMatches;
     });
 
     if (hasRunningTicket) {
@@ -273,10 +278,14 @@ If an item should be removed entirely (duplicate or no longer relevant):
     // Check if a ticket already exists for this item
     const allTickets = await db.select({ title: tickets.title, executionStatus: tickets.executionStatus })
       .from(tickets).where(eq(tickets.orgId, mission.orgId)).limit(50);
-    const itemKeywords = focusItem.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    // Match items to tickets — require at least 50% of meaningful keywords to match
+    // (previous threshold of 2 keywords was too loose, matching unrelated items)
+    const stopWords = new Set(['implement','create','build','add','update','with','from','into','the','and','for']);
+    const itemKeywords = focusItem.title.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+    const minMatches = Math.max(2, Math.ceil(itemKeywords.length * 0.5));
     const existingTicket = allTickets.find(t => {
       const tl = t.title.toLowerCase();
-      return itemKeywords.filter(kw => tl.includes(kw)).length >= 2;
+      return itemKeywords.filter(kw => tl.includes(kw)).length >= minMatches;
     });
 
     let heartbeatMessage: string;
