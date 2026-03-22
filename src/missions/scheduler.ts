@@ -335,19 +335,6 @@ Output ONLY this block with a detailed description:
     // Update assignment
     await updateMissionItem(focusItem.id, { assignedAgentId: agentId });
 
-    // Send heartbeat as a message in the mission channel
-    await sendAgentMessage(mission.channelId, 'Nexus', heartbeatMessage, mission.orgId);
-    await storeMessage({
-      orgId: mission.orgId,
-      channelId: mission.channelId,
-      discordMessageId: `mission-hb-${Date.now()}`,
-      authorId: 'agent',
-      authorName: 'Nexus',
-      content: heartbeatMessage,
-      isAgent: true,
-      agentId: 'nexus',
-    });
-
     // Execute the agent
     const response = await executeAgent({
       orgId: mission.orgId,
