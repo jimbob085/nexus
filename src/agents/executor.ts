@@ -187,6 +187,7 @@ Please refine your proposal based on this feedback.
             repoKey: parsed.repoKey,
             agentId,
             source,
+            channelId,
             agentDiscussionContext: parsed.agentDiscussionContext,
             fallbackPlan: parsed.fallbackPlan,
           });
