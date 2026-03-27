@@ -5,7 +5,6 @@ import { getAllocationOverview } from '../../idle/allocator.js';
 import { resolveProjectPolicy, setProjectPolicy, getAllProjectPolicies } from '../../idle/policy-resolver.js';
 import { getProjectSuppressionReport } from '../../idle/suppression.js';
 import { parseScheduleShorthand, getEffectiveTicketsPerDay, type FocusLevel, type ProjectPolicy } from '../../idle/project-policy.js';
-import { setSetting, getSetting } from '../../settings/service.js';
 import { db } from '../../db/index.js';
 import { localProjects } from '../../db/schema.js';
 import { eq, and, ilike } from 'drizzle-orm';
@@ -85,16 +84,9 @@ export async function handleFocusCommand(
   // Check if this would push above plan default and show forecast warning
   let forecastWarning = '';
   try {
-    const overview = await getAllocationOverview(orgId);
-    const oldPerDay = getEffectiveTicketsPerDay(currentPolicy);
-    const newTotal = overview.dailyTotal - oldPerDay + effectivePerDay;
-    const planDefault = await getSetting('plan_daily_default', orgId) as number | null;
-
-    if (planDefault && newTotal > planDefault) {
-      const monthlyProjected = newTotal * 30;
-      const monthlyDefault = planDefault * 30;
-      const pctIncrease = Math.round(((newTotal - planDefault) / planDefault) * 100);
-      forecastWarning = `\n\n⚠️ This increases your projected monthly output to ~${monthlyProjected} tickets (plan default: ${monthlyDefault}). You may consume compute credits ${pctIncrease}% faster.`;
+    const forecast = await fetchForecast(orgId);
+    if (forecast && forecast.computeImpactPercent > 0) {
+      forecastWarning = `\n\n⚠️ This increases your projected monthly output to ~${forecast.projectedMonthlyOutput} tickets (plan default: ${forecast.planDefaultMonthly}). You may consume compute credits ${forecast.computeImpactPercent}% faster.`;
     }
   } catch { /* forecast not critical */ }
 
@@ -175,16 +167,19 @@ async function handleFocusList(channelId: string, orgId: string): Promise<void> 
       return `${padRight(p.name, 20)} ${bar}  ${padRight(levelLabel, 20)} — ${todayLabel}`;
     });
 
-    // Get plan default (if available)
-    const planDefault = await getSetting('plan_daily_default', orgId) as number | null;
+    // Get plan default from conductor forecast (if available)
+    const forecast = await fetchForecast(orgId);
+    const planDailyDefault = forecast
+      ? Math.round(forecast.planDefaultMonthly / 30)
+      : null;
 
     let footer = `\nDaily total: ${overview.dailyTotal}/day`;
-    if (planDefault) {
-      footer += `  |  Plan default: ${planDefault}/day`;
+    if (planDailyDefault) {
+      footer += `  |  Plan default: ${planDailyDefault}/day`;
     }
 
-    if (planDefault && overview.dailyTotal > planDefault) {
-      footer += `\n\n⚠️ Total allocation (${overview.dailyTotal}/day) exceeds your plan default (${planDefault}/day). Excess usage will consume compute credits faster.`;
+    if (forecast && forecast.computeImpactPercent > 0) {
+      footer += `\n\n⚠️ Total allocation (${overview.dailyTotal}/day) exceeds your plan default (${planDailyDefault}/day). Excess usage will consume compute credits faster.`;
     }
 
     const message = `**Agent Focus**\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`${footer}`;
@@ -269,4 +264,23 @@ function capitalize(s: string): string {
 
 function padRight(s: string, len: number): string {
   return s.length >= len ? s.substring(0, len) : s + ' '.repeat(len - s.length);
+}
+
+interface ForecastResult {
+  projectedMonthlyOutput: number;
+  planDefaultMonthly: number;
+  computeImpactPercent: number;
+}
+
+/** Fetch billing forecast from conductor via adapters (returns null in OSS mode) */
+async function fetchForecast(orgId: string): Promise<ForecastResult | null> {
+  try {
+    const mod = await (Function('return import("@permaship/agents-adapters")')() as Promise<Record<string, unknown>>);
+    const fetch = mod.fetchNexusForecast as
+      ((id: string) => Promise<ForecastResult | null>) | undefined;
+    if (fetch) return await fetch(orgId);
+  } catch {
+    // OSS mode — adapters package not installed
+  }
+  return null;
 }
