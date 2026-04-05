@@ -26,15 +26,16 @@ function isExcluded(name: string): boolean {
 /**
  * Filesystem-based SourceExplorer for local development.
  * Resolves repoKey → local path via a constructor-injected resolver function.
+ * The resolver may be synchronous or async.
  */
 export class LocalSourceExplorer implements SourceExplorer {
-  private resolveRoot: (repoKey: string) => string | null;
+  private resolveRoot: (repoKey: string) => string | null | Promise<string | null>;
 
-  constructor(resolveRoot: (repoKey: string) => string | null) {
+  constructor(resolveRoot: (repoKey: string) => string | null | Promise<string | null>) {
     this.resolveRoot = resolveRoot;
   }
 
-  private getRoot(repoKey: string): string | null {
+  private async getRoot(repoKey: string): Promise<string | null> {
     return this.resolveRoot(repoKey);
   }
 
@@ -52,7 +53,7 @@ export class LocalSourceExplorer implements SourceExplorer {
   }
 
   async readFile(orgId: string, repoKey: string, filePath: string): Promise<{ content: string; truncated: boolean } | null> {
-    const root = this.getRoot(repoKey);
+    const root = await this.getRoot(repoKey);
     if (!root) return null;
     const fullPath = this.validatePath(root, filePath);
     if (!fullPath) return null;
@@ -76,7 +77,7 @@ export class LocalSourceExplorer implements SourceExplorer {
   }
 
   async listDirectory(orgId: string, repoKey: string, dirPath: string): Promise<{ entries: DirectoryEntry[] } | null> {
-    const root = this.getRoot(repoKey);
+    const root = await this.getRoot(repoKey);
     if (!root) return null;
     const fullPath = this.validatePath(root, dirPath);
     if (!fullPath) return null;
@@ -99,7 +100,7 @@ export class LocalSourceExplorer implements SourceExplorer {
   }
 
   async searchCode(orgId: string, repoKey: string, query: string, options?: { glob?: string; maxResults?: number }): Promise<{ matches: CodeSearchMatch[] } | null> {
-    const root = this.getRoot(repoKey);
+    const root = await this.getRoot(repoKey);
     if (!root) return null;
     const maxResults = Math.min(options?.maxResults ?? MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS);
 
@@ -132,7 +133,7 @@ export class LocalSourceExplorer implements SourceExplorer {
   }
 
   async getFileTree(orgId: string, repoKey: string, options?: { maxDepth?: number }): Promise<{ tree: string } | null> {
-    const root = this.getRoot(repoKey);
+    const root = await this.getRoot(repoKey);
     if (!root) return null;
     const maxDepth = options?.maxDepth ?? 3;
 

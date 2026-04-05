@@ -3,7 +3,7 @@
  * These tools operate on a cloned local workspace and include git-based tools.
  */
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { resolve, relative } from 'node:path';
+import { resolve, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { LLMFunctionDeclaration } from '../adapters/interfaces/llm-provider.js';
@@ -22,9 +22,9 @@ function isExcluded(name: string): boolean {
 
 function validatePath(root: string, filePath: string): string | null {
   const resolved = resolve(root, filePath);
-  if (!resolved.startsWith(root + '/') && resolved !== root) return null;
+  if (!resolved.startsWith(root + sep) && resolved !== root) return null;
   const rel = relative(root, resolved);
-  for (const part of rel.split('/')) {
+  for (const part of rel.split(sep)) {
     if (isExcluded(part)) return null;
   }
   return resolved;

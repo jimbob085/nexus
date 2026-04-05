@@ -22,6 +22,7 @@ import { createExecutionBackend } from './execution-backends/factory.js';
 import { LocalProjectRegistry } from './project-registry.js';
 import { LocalGitCommitProvider } from './commit-provider.js';
 import { LocalFileKnowledgeSource } from './knowledge-source.js';
+import { LocalSourceExplorer } from '../adapters/default/source-explorer.js';
 
 // LLM provider factory (supports Gemini, Anthropic, OpenAI, Ollama, OpenRouter)
 import { createLLMProvider } from '../adapters/providers/factory.js';
@@ -162,6 +163,9 @@ async function main() {
     const projectRegistry = new LocalProjectRegistry();
     const commitProvider = new LocalGitCommitProvider(projectRegistry);
     const knowledgeSource = new LocalFileKnowledgeSource(projectRegistry);
+    const sourceExplorer = new LocalSourceExplorer(
+      (repoKey: string) => projectRegistry.getProjectByRepoKey(repoKey, LOCAL_ORG_ID).then(p => p?.localPath ?? null),
+    );
 
     // Build ticket tracker — with execution backend if configured
     const backendName = config.EXECUTION_BACKEND;
@@ -190,6 +194,7 @@ async function main() {
       ticketTracker,
       tenantResolver: new SingleTenantResolver(),
       llmProvider,
+      sourceExplorer,
     });
 
     // Run DB migrations
