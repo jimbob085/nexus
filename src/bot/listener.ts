@@ -40,7 +40,7 @@ export interface UnifiedMessage {
   authorName: string;
   isThread: boolean;
   parentId?: string;
-  platform: 'discord' | 'slack';
+  platform: 'discord' | 'slack' | 'github';
   referenceId?: string;
   platformMessageId?: string; // Native platform message ID (Discord snowflake or Slack ts)
   orgId?: string; // Resolved from workspaceId
@@ -160,6 +160,7 @@ export async function flushQueuedSuggestions(channelId: string, orgId: string): 
 }
 
 import { orchestrateStrategy } from '../agents/strategy.js';
+import { handleFocusCommand, handleScheduleCommand } from './commands/focus.js';
 
 async function handleAdminCommand(message: UnifiedMessage, orgId: string): Promise<boolean> {
   const content = message.content.trim();
@@ -246,6 +247,10 @@ async function handleIncomingMessage(message: UnifiedMessage, isPublic: boolean,
     return;
   }
 
+  // Handle !focus and !schedule commands
+  if (await handleFocusCommand(message.content, message.channelId, orgId, userName)) return;
+  if (await handleScheduleCommand(message.content, message.channelId, orgId, userName)) return;
+
   const dashboardUrl = config.ACTIVATION_URL ? `${config.ACTIVATION_URL}/dashboard` : '';
   const destructiveCheck = checkDestructiveAction(message.content, dashboardUrl);
   if (destructiveCheck.blocked) {
@@ -331,8 +336,6 @@ async function handleIncomingMessage(message: UnifiedMessage, isPublic: boolean,
   for (const route of effectiveRoutes) {
     const agent = getAgent(route.agentId as AgentId);
     if (!agent) continue;
-
-    await isAutonomousMode(orgId);
 
     const response = await executeAgent({
       orgId,

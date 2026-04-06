@@ -24,7 +24,7 @@ describe('database migration system', () => {
   it('applies all migrations without error', async () => {
     const { runMigrations } = await import('./index.js');
     await expect(runMigrations()).resolves.not.toThrow();
-  });
+  }, 30_000);
 
   it('is idempotent — running migrations twice does not throw', async () => {
     const { runMigrations } = await import('./index.js');

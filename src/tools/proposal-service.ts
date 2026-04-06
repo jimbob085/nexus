@@ -21,6 +21,8 @@ export interface TicketProposalInput {
   agentId: AgentId;
   /** Origin of this proposal: 'user' for Slack/Discord messages, 'idle' for system-initiated */
   source?: 'user' | 'idle';
+  /** Channel where this proposal originated (mission channel for mission-scoped autonomous mode) */
+  channelId?: string;
   /** Synthesized prose summary of agent discussion context (max 1500 chars). */
   agentDiscussionContext?: string;
   /** Fallback plan for non-primary execution paths. Must begin with "**Fallback:**". */
@@ -192,7 +194,7 @@ Where <index> is the 1-based index number from the EXISTING TICKETS list.`;
  * Shared by both CLI path and fast path (structured output).
  */
 export async function createTicketProposal(input: TicketProposalInput): Promise<TicketProposalResult> {
-  const { orgId, kind, title, description, project, priority, agentId, source, agentDiscussionContext, fallbackPlan } = input;
+  const { orgId, kind, title, description, project, priority, agentId, source, channelId, agentDiscussionContext, fallbackPlan } = input;
   let { repoKey } = input;
 
   // Compose enriched description from base description + optional sections
@@ -310,6 +312,7 @@ export async function createTicketProposal(input: TicketProposalInput): Promise<
     description: `Create ${kind} ticket: "${title}"`,
     status,
     source: source ?? null,
+    channelId: channelId ?? null,
     fileContext: fileContext ?? null,
   }).returning();
 
