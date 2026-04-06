@@ -1,0 +1,10 @@
+{
+  "name": "@permaship/agents-adapters",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
